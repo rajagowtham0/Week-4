@@ -1,80 +1,47 @@
-# functional insight generator
 from collections import Counter
-import re
+import pandas as pd
 
-# similarity case insight generation
-def generate_case_insight(similar_cases: list,
-                          stored_cases: list,
-                          query_text: str) -> dict:
 
-    if len(similar_cases) == 0:
-        return {
-            "shared_terms": [],
-            "common_treatments": [],
-            "outcome_trend": "Insufficient data",
-            "recovery_trend": "Insufficient data"
-        }
+def generate_insights(similar_cases, stored_cases):
 
-    # Map case_id to case data
-    case_map = {
-        case["case_id"]: case for case in stored_cases
-    }
-
-    similar_texts = []
     treatments = []
     outcomes = []
-    recovery_info = []
+    similarity_scores = []
 
     for case in similar_cases:
-        case_data = case_map.get(case["case_id"])
+        case_id = case["case_id"]
+        similarity_scores.append(case["similarity_score"])
 
-        if not case_data:
-            continue
+        row = stored_cases[stored_cases["case_id"] == case_id].iloc[0]
 
-        similar_texts.append(case_data.get("combined_text", ""))
+        treatments.append(str(row["treatment"]))
+        outcomes.append(str(row["outcome"]))
 
-        if "treatment" in case_data:
-            treatments.append(case_data["treatment"])
+        # Safe handling for recovery_days 
+        recovery_value = row["recovery_days"]
 
-        if "outcome" in case_data:
-            outcomes.append(case_data["outcome"])
+        if pd.isna(recovery_value):
+            recovery_value = None
+        else:
+            recovery_value = int(recovery_value)
 
-        if "recovery_time" in case_data:
-            recovery_info.append(case_data["recovery_time"])
+    # Common treatment pattern
+    common_treatment_pattern = list(set(treatments))
 
-    # Shared Terms 
-    query_words = set(query_text.lower().split())
-    term_counter = Counter()
+    # Most frequent outcome
+    outcome_pattern = Counter(outcomes).most_common(1)[0][0]
 
-    for text in similar_texts:
-        words = set(text.lower().split())
-        shared = query_words.intersection(words)
-        term_counter.update(shared)
+    # Average similarity
+    avg_confidence = round(sum(similarity_scores) / len(similarity_scores), 4)
 
-    most_common_terms = [
-        term for term, _ in term_counter.most_common(5)
-    ]
+    confidence_reason = (
+        f"Based on {len(similar_cases)} highly similar historical cases, "
+        f"the confidence score obtained is {avg_confidence}."
+    )
 
-    #  Common Treatments 
-    most_common_treatments = [
-        t for t, _ in Counter(treatments).most_common(3)
-    ]
-
-    # Outcome Trend 
-    outcome_trend = "Not clearly observed"
-    if outcomes:
-        outcome_trend = Counter(outcomes).most_common(1)[0][0]
-
-    # Recovery Trend 
-    recovery_trend = "Not specified"
-    if recovery_info:
-        recovery_trend = "Recovery mentioned in similar cases"
-
-    insight = {
-        "shared_terms": most_common_terms,
-        "common_treatments": most_common_treatments,
-        "outcome_trend": outcome_trend,
-        "recovery_trend": recovery_trend
+    return {
+        "similar_cases": similar_cases,
+        "common_treatment_pattern": common_treatment_pattern,
+        "outcome_pattern": outcome_pattern,
+        "confidence_reason": confidence_reason
     }
-
-    return insight

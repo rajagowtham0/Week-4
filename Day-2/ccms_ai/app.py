@@ -1,57 +1,53 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import List
 
 import embedding
 import similarityengine
 import Insight_generator
 import main
 
-app = FastAPI(title="CCMS AI Clinical Similarity API")
+app = FastAPI(
+    title="CCMS AI Clinical Similarity API",
+    version="4.0.0"
+)
 
-# Global variables
 stored_cases = None
 stored_embeddings = None
-# startup event
+# loading of dataset
 @app.on_event("startup")
 def startup_event():
     global stored_cases, stored_embeddings
-    print("Initializing Similarity Engine...")
     stored_cases, stored_embeddings = main.initialize_system()
-    print("System Ready!")
-
-# request model
+# input schema
 class CaseInput(BaseModel):
     symptoms: str
     doctor_notes: str
-
-# health check
-@app.get("/")
-def health_check():
-    return {"message": "CCMS API running"}
-
-# main end point
+# main endpoint
 @app.post("/analyze-case")
 def analyze_case(case: CaseInput):
 
     try:
         input_text = f"{case.symptoms} {case.doctor_notes}"
 
-        # Generate query embedding
         query_embedding = embedding.generate_embeddings([input_text])
 
-        # Use similarity engine properly
         similar_cases = similarityengine.retrieve_similar_cases(
-            query_embedding,
-            stored_cases,
-            stored_embeddings
+            query_embedding=query_embedding,
+            stored_cases=stored_cases,
+            stored_embeddings=stored_embeddings,
+            top_k=4
         )
 
-        insights = Insight_generator.generate_insights(similar_cases)
+        insights = Insight_generator.generate_insights(
+            similar_cases=similar_cases,
+            stored_cases=stored_cases
+        )
 
+        # Final required structured output
         return {
-            "input_summary": input_text,
             "similar_cases": similar_cases,
-            "clinical_insights": insights
+            **insights
         }
 
     except Exception as e:
