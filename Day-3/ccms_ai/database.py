@@ -1,12 +1,9 @@
 from pymongo import MongoClient
-# Connect to local MongoDB
-client = MongoClient("mongodb://localhost:27017/")
-# Access Database
-db = client["ccms_ai"]  
-# Access Collection
-collection = db["patientrecording"]   
-
-# fetching all patient cases from mongodb
+from config import MONGO_URI, DATABASE_NAME, COLLECTION_NAME
+# client, Database, and MongoDB URL information from config.py
+client = MongoClient(MONGO_URI)
+db = client[DATABASE_NAME]
+collection = db[COLLECTION_NAME]
+# fetching all data
 def fetch_all_cases():
-    documents = list(collection.find({}, {"_id": 0}))
-    return documents
+    return list(collection.find({}, {"_id": 0}))
