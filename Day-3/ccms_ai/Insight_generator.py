@@ -1,47 +1,52 @@
+# insight_generator.py
+
 from collections import Counter
-import pandas as pd
 
+#generating structured insight summary
+def generate_case_insight(similar_cases, stored_cases):
+    # safety checks
+    if not similar_cases:
+        return (
+            "No treatment pattern identified.",
+            "Limited historical similarity."
+        )
 
-def generate_insights(similar_cases, stored_cases):
+    if not stored_cases:
+        return (
+            "No treatment pattern identified.",
+            "No historical data available."
+        )
+
+    # Create quick lookup dictionary
+    case_map = {
+        case["case_id"]: case for case in stored_cases
+    }
 
     treatments = []
-    outcomes = []
-    similarity_scores = []
-
+    
+    # extracting treatment information
     for case in similar_cases:
-        case_id = case["case_id"]
-        similarity_scores.append(case["similarity_score"])
+        case_id = case.get("case_id")
+        matched_case = case_map.get(case_id)
 
-        row = stored_cases[stored_cases["case_id"] == case_id].iloc[0]
+        if matched_case and "treatment" in matched_case:
+            treatments.append(matched_case["treatment"])
 
-        treatments.append(str(row["treatment"]))
-        outcomes.append(str(row["outcome"]))
+    # structured insight summary
+    if not treatments:
+        return (
+            "No treatment pattern identified.",
+            "Limited historical similarity."
+        )
 
-        # Safe handling for recovery_days 
-        recovery_value = row["recovery_days"]
+    most_common = Counter(treatments).most_common(1)[0][0]
 
-        if pd.isna(recovery_value):
-            recovery_value = None
-        else:
-            recovery_value = int(recovery_value)
-
-    # Common treatment pattern
-    common_treatment_pattern = list(set(treatments))
-
-    # Most frequent outcome
-    outcome_pattern = Counter(outcomes).most_common(1)[0][0]
-
-    # Average similarity
-    avg_confidence = round(sum(similarity_scores) / len(similarity_scores), 4)
-
-    confidence_reason = (
-        f"Based on {len(similar_cases)} highly similar historical cases, "
-        f"the confidence score obtained is {avg_confidence}."
+    summary = (
+        f"In similar past cases, patients commonly responded well to {most_common}."
     )
 
-    return {
-        "similar_cases": similar_cases,
-        "common_treatment_pattern": common_treatment_pattern,
-        "outcome_pattern": outcome_pattern,
-        "confidence_reason": confidence_reason
-    }
+    confidence = (
+        f"Based on {len(similar_cases)} similar historical cases."
+    )
+
+    return summary, confidence
