@@ -8,10 +8,14 @@ from Insight_generator import generate_case_insight
 from database import fetch_all_cases
 
 app = FastAPI(title="CCMS AI Similarity Engine")
-# global in-memory storage
+
+# global in memory storage and cache is added
 stored_cases = []
 stored_embeddings = None
-# startup event
+cache = {}  
+
+
+# startup event 
 @app.on_event("startup")
 def load_data():
     global stored_cases, stored_embeddings
@@ -32,7 +36,7 @@ def load_data():
 @app.post("/analyze-case", response_model=CaseResponse)
 def analyze_case(request: CaseRequest):
 
-    global stored_cases, stored_embeddings
+    global stored_cases, stored_embeddings, cache
 
     try:
         if not stored_cases or stored_embeddings is None:
@@ -41,15 +45,22 @@ def analyze_case(request: CaseRequest):
                 detail="System not initialized properly."
             )
 
-        # Generate embedding for incoming case
+        # Combine input text
         combined_text = combine_text(
             request.symptoms,
             request.doctor_notes
         )
 
+        # Normalize for caching
+        cache_key = combined_text.strip().lower()
+
+        # checking cache
+        if cache_key in cache:
+            return cache[cache_key]
+
+        # Generate query embedding
         query_embedding = generate_embedding(combined_text)
 
-        # Ensure correct shape
         if len(query_embedding.shape) == 1:
             query_embedding = query_embedding.reshape(1, -1)
 
@@ -66,11 +77,16 @@ def analyze_case(request: CaseRequest):
             stored_cases
         )
 
-        return {
+        response = {
             "similar_cases": similar_cases,
             "insight_summary": insight_summary,
             "confidence_reason": confidence_reason
         }
+
+        # storing in cache key
+        cache[cache_key] = response
+
+        return response
 
     except HTTPException:
         raise
